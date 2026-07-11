@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build --prefix frontend"
+  command = "bash -lc 'npm ci --prefix frontend && npm run build --prefix frontend'"
   publish = "frontend/.next"
   functions = "netlify/functions"
 
