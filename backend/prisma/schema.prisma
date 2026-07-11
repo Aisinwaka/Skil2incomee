@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(cuid())
+  email String? @unique
+  phone String? @unique
+  firstName String?
+  lastName String?
+  incomeReadinessScore Int @default(0)
+  location String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assessment Assessment?
+  applications Application[]
+  enrolledCourses UserCourseProgress[]
+}
+
+model Assessment {
+  id String @id @default(cuid())
+  userId String @unique
+  age Int?
+  education String?
+  skills String[]
+  incomeReadinessScore Int?
+  completedAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Job {
+  id String @id @default(cuid())
+  title String
+  company String
+  description String
+  salary Json?
+  skills String[]
+  applications Application[]
+}
+
+model Application {
+  id String @id @default(cuid())
+  userId String
+  jobId String
+  status String @default("applied")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id String @id @default(cuid())
+  title String
+  description String
+  category String
+  level String
+  enrollments UserCourseProgress[]
+}
+
+model UserCourseProgress {
+  id String @id @default(cuid())
+  userId String
+  courseId String
+  progress Int @default(0)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}

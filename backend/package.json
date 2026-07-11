@@ -1,0 +1,44 @@
+{
+  "name": "skill2income-backend",
+  "version": "1.0.0",
+  "description": "Skill2Income Backend API",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint src",
+    "test": "jest",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "node dist/prisma/seed.js",
+    "db:studio": "prisma studio"
+  },
+  "keywords": ["API", "Express", "TypeScript"],
+  "author": "Skill2Income Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "prisma": "^5.0.0",
+    "@prisma/client": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "jsonwebtoken": "^9.1.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^7.0.0",
+    "redis": "^4.6.10",
+    "openai": "^4.0.0",
+    "axios": "^1.5.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/express": "^4.17.17",
+    "typescript": "^5.0.0",
+    "ts-node-dev": "^2.0.0",
+    "eslint": "^8.48.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0"
+  }
+}
