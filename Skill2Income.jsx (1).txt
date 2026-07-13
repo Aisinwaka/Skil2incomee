@@ -1,0 +1,1547 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+
+/* ============================================================
+   SKILL2INCOME — Design tokens
+   Display: Sora (geometric, confident, reads well at large sizes)
+   Body/UI: Inter (neutral, dense-data friendly)
+   Data/Mono: JetBrains Mono (scores, currency, stats)
+   Signature element: the "Growth Ring" — a circular progress
+   motif used for the Income Readiness Score, learning progress,
+   and blueprint milestones, echoing an upward path.
+   ============================================================ */
+
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');`;
+
+const COLORS = {
+  emerald: "#16A34A",
+  emeraldDark: "#15803D",
+  emeraldLight: "#DCFCE7",
+  blue: "#2563EB",
+  blueLight: "#DBEAFE",
+  orange: "#F97316",
+  orangeLight: "#FFEDD5",
+};
+
+/* ---------------- Theme context (simple prop-drill, no external libs) --------------- */
+function useTheme() {
+  const [dark, setDark] = useState(false);
+  const t = dark
+    ? {
+        bg: "#0B0F0D",
+        bgElevated: "#121712",
+        bgCard: "#151B15",
+        border: "#232B23",
+        text: "#F5F7F5",
+        textMuted: "#9CA89C",
+        textFaint: "#6B776B",
+        nav: "rgba(11,15,13,0.85)",
+      }
+    : {
+        bg: "#FAFAF9",
+        bgElevated: "#FFFFFF",
+        bgCard: "#FFFFFF",
+        border: "#E7E9E5",
+        text: "#0F1712",
+        textMuted: "#5B655B",
+        textFaint: "#8A928A",
+        nav: "rgba(250,250,249,0.85)",
+      };
+  return { dark, setDark, t };
+}
+
+/* ---------------- Growth Ring (signature element) --------------- */
+function GrowthRing({ value, size = 120, stroke = 10, label, sub, dark }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (value / 100) * c;
+  const gradId = useRef("grad-" + Math.random().toString(36).slice(2)).current;
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={COLORS.emerald} />
+            <stop offset="100%" stopColor={COLORS.blue} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke={dark ? "#232B23" : "#EDEFEA"} strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={`url(#${gradId})`}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)" }}
+        />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontFamily: "Sora", fontWeight: 800, fontSize: size * 0.26 }}>{value}</span>
+        {label && <span style={{ fontFamily: "Inter", fontSize: size * 0.09, opacity: 0.6, marginTop: 2 }}>{label}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Small primitives --------------- */
+function Btn({ children, variant = "primary", onClick, style, full, size = "md", icon }) {
+  const sizes = { sm: "8px 14px", md: "12px 20px", lg: "15px 28px" };
+  const fontSizes = { sm: 13, md: 14.5, lg: 16 };
+  const base = {
+    fontFamily: "Inter",
+    fontWeight: 600,
+    fontSize: fontSizes[size],
+    padding: sizes[size],
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: full ? "100%" : "auto",
+    transition: "transform .12s ease, opacity .12s ease, box-shadow .12s ease",
+    whiteSpace: "nowrap",
+  };
+  const variants = {
+    primary: { background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.emeraldDark})`, color: "#fff", boxShadow: "0 6px 16px -6px rgba(22,163,74,0.5)" },
+    secondary: { background: COLORS.blue, color: "#fff", boxShadow: "0 6px 16px -6px rgba(37,99,235,0.45)" },
+    ghost: { background: "transparent", color: "inherit", border: "1.5px solid currentColor", opacity: 0.85 },
+    subtle: { background: "rgba(120,120,120,0.1)", color: "inherit" },
+    accent: { background: COLORS.orange, color: "#fff", boxShadow: "0 6px 16px -6px rgba(249,115,22,0.5)" },
+  };
+  return (
+    <button
+      onClick={onClick}
+      onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+      onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+      style={{ ...base, ...variants[variant], ...style }}
+    >
+      {icon}{children}
+    </button>
+  );
+}
+
+function Card({ children, t, style, onClick, pad = 20 }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: t.bgCard,
+        border: `1px solid ${t.border}`,
+        borderRadius: 18,
+        padding: pad,
+        cursor: onClick ? "pointer" : "default",
+        transition: "border-color .15s ease, transform .15s ease",
+        ...style,
+      }}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = COLORS.emerald)}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = t.border)}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Badge({ children, color = COLORS.emerald, bg }) {
+  return (
+    <span
+      style={{
+        fontFamily: "Inter",
+        fontWeight: 600,
+        fontSize: 12,
+        padding: "4px 10px",
+        borderRadius: 999,
+        color,
+        background: bg || color + "1A",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Icon({ name, size = 20, color = "currentColor" }) {
+  const icons = {
+    bolt: "M13 2 3 14h7l-1 8 11-14h-7l1-6z",
+    briefcase: "M3 7h18v13H3V7zm5 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18",
+    book: "M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5v-17zM20 19H6.5A2.5 2.5 0 0 0 4 21.5",
+    chart: "M3 3v18h18M7 15l4-5 3 3 5-7",
+    coin: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v12M15 9.5c0-1.4-1.4-2.5-3-2.5s-3 1.1-3 2.5 1.4 2 3 2.5 3 1.1 3 2.5-1.4 2.5-3 2.5-3-1.1-3-2.5",
+    chat: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z",
+    bell: "M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0",
+    calendar: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+    trophy: "M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 5H4a2 2 0 0 0 0 4h3M17 5h3a2 2 0 0 1 0 4h-3",
+    target: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
+    sun: "M12 3v2M12 19v2M5 5l1.5 1.5M17.5 17.5 19 19M3 12h2M19 12h2M5 19l1.5-1.5M17.5 6.5 19 5M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+    moon: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z",
+    mic: "M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8",
+    send: "M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z",
+    grid: "M3 3h8v8H3V3zM13 3h8v8h-8V3zM3 13h8v8H3v-8zM13 13h8v8h-8v-8z",
+    check: "M20 6 9 17l-5-5",
+    arrowRight: "M5 12h14M13 6l6 6-6 6",
+    shield: "M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z",
+    users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+    globe: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z",
+    play: "M6 3l15 9-15 9V3z",
+    star: "M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z",
+    x: "M18 6 6 18M6 6l12 12",
+    menu: "M3 6h18M3 12h18M3 18h18",
+    location: "M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zM12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM14 2v6h6",
+    settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+    logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+    plus: "M12 5v14M5 12h14",
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={icons[name] || ""} />
+    </svg>
+  );
+}
+
+/* ============================================================
+   LANDING PAGE
+   ============================================================ */
+function Landing({ t, dark, setDark, goAuth }) {
+  const [openFaq, setOpenFaq] = useState(0);
+  const features = [
+    { icon: "target", title: "Income Readiness Score", desc: "A 0–100 score that tells you exactly how close you are to earning, and what's holding you back." },
+    { icon: "bolt", title: "AI Career Blueprint", desc: "A step-by-step roadmap into a job, trade, freelance gig, or business — built around your skills and budget." },
+    { icon: "chat", title: "AI Mentor in your language", desc: "Ask for career, business, or money advice in English, Hausa, Yoruba, or Igbo — by voice or text." },
+    { icon: "briefcase", title: "Smart Job & Gig Matching", desc: "Jobs, gigs, and grants ranked by how well they match your real skills — not just keywords." },
+    { icon: "coin", title: "Money tools built for real budgets", desc: "Track income, plan an emergency fund, and forecast growth, from ₦0 upward." },
+    { icon: "trophy", title: "Streaks, XP & badges", desc: "Stay consistent with daily tasks and see your progress compound, week over week." },
+  ];
+  const steps = [
+    { n: "1", title: "Tell us where you're starting", desc: "Answer questions about your skills, location, budget, and goals — takes about 6 minutes." },
+    { n: "2", title: "Get your Readiness Score", desc: "See exactly what's working for you and what to fix first, with a clear breakdown." },
+    { n: "3", title: "Follow your Income Blueprint", desc: "A personalized path with weekly milestones — job, trade, freelance, or business." },
+    { n: "4", title: "Earn, track, and grow", desc: "Apply, learn, and log income while your AI mentor keeps you on track." },
+  ];
+  const testimonials = [
+    { name: "Amina Yusuf", role: "Tailoring business, Kano", quote: "I went from doing menial jobs to running my own tailoring shop with three regular clients. The blueprint told me exactly what to learn first." },
+    { name: "Chidi Okafor", role: "Freelance data entry, Enugu", quote: "The AI mentor helped me price my first gig properly in Hausa— sorry, in Igbo. I undercharge less now." },
+    { name: "Fatima Bello", role: "NYSC corps member, Kaduna", quote: "Skill2Income found me a grant I didn't know existed. That funded my first three months." },
+  ];
+  const faqs = [
+    { q: "Is Skill2Income free to use?", a: "Yes. The assessment, your Income Blueprint, and core tools are free. Some advanced courses and premium mentorship sessions may carry a small fee." },
+    { q: "Do I need a smartphone or fast internet?", a: "No. The platform is built mobile-first and works on low-end Android devices with 2G/3G, with offline access to your saved roadmap and tasks." },
+    { q: "What if I have no formal skills yet?", a: "That's exactly who this is for. The onboarding assessment identifies transferable skills and interests, then recommends a starting path — including vocational trades and agriculture." },
+    { q: "Which languages are supported?", a: "The interface and AI mentor currently support English, Hausa, Yoruba, and Igbo, with more Nigerian and African languages planned." },
+  ];
+  const wrap = { maxWidth: 1180, margin: "0 auto", padding: "0 24px" };
+  return (
+    <div style={{ background: t.bg, color: t.text, minHeight: "100vh" }}>
+      <style>{`
+        * { box-sizing: border-box; margin:0; padding:0; }
+        body { -webkit-font-smoothing: antialiased; }
+        .s2i-link { color: inherit; text-decoration:none; opacity:.75; font-family:Inter; font-weight:500; font-size:14.5px; cursor:pointer; }
+        .s2i-link:hover { opacity:1; }
+        .s2i-grid-features { display:grid; grid-template-columns: repeat(3,1fr); gap:20px; }
+        .s2i-grid-steps { display:grid; grid-template-columns: repeat(4,1fr); gap:20px; }
+        .s2i-grid-testi { display:grid; grid-template-columns: repeat(3,1fr); gap:20px; }
+        @media (max-width: 900px){
+          .s2i-grid-features{ grid-template-columns:1fr; }
+          .s2i-grid-steps{ grid-template-columns:1fr 1fr; }
+          .s2i-grid-testi{ grid-template-columns:1fr; }
+          .s2i-nav-links{ display:none; }
+          .s2i-hero-h1 { font-size:38px !important; }
+        }
+      `}</style>
+
+      {/* Nav */}
+      <div style={{ position: "sticky", top: 0, zIndex: 40, backdropFilter: "blur(10px)", background: t.nav, borderBottom: `1px solid ${t.border}` }}>
+        <div style={{ ...wrap, height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="bolt" size={18} color="#fff" />
+            </div>
+            <span style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 18 }}>Skill2Income</span>
+          </div>
+          <div className="s2i-nav-links" style={{ display: "flex", gap: 30 }}>
+            <span className="s2i-link">Features</span>
+            <span className="s2i-link">How it works</span>
+            <span className="s2i-link">Stories</span>
+            <span className="s2i-link">FAQ</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => setDark(!dark)} style={{ background: "transparent", border: "none", cursor: "pointer", color: t.text, opacity: 0.7, display: "flex", padding: 6 }}>
+              <Icon name={dark ? "sun" : "moon"} size={18} />
+            </button>
+            <span className="s2i-link" onClick={() => goAuth("login")} style={{ display: window.innerWidth < 600 ? "none" : "inline" }}>Log in</span>
+            <Btn size="sm" onClick={() => goAuth("signup")}>Start Free</Btn>
+          </div>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <div style={{ ...wrap, paddingTop: 84, paddingBottom: 70, textAlign: "center", position: "relative" }}>
+        <div style={{ position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)", width: 700, height: 400, background: `radial-gradient(ellipse at center, ${COLORS.emerald}22, transparent 70%)`, filter: "blur(20px)", zIndex: 0, pointerEvents: "none" }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <Badge color={COLORS.emerald}>🇳🇬 Built for Nigeria, scaling across Africa</Badge>
+          <h1 className="s2i-hero-h1" style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 60, lineHeight: 1.08, marginTop: 22, letterSpacing: "-0.02em" }}>
+            From Skills to<br />
+            <span style={{ background: `linear-gradient(90deg, ${COLORS.emerald}, ${COLORS.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Sustainable Income</span>
+          </h1>
+          <p style={{ fontFamily: "Inter", fontSize: 18, color: t.textMuted, maxWidth: 620, margin: "22px auto 0", lineHeight: 1.6 }}>
+            An AI-powered roadmap out of unemployment — into a job, a trade, freelance work, or your own business. Personalized to your skills, location, and budget.
+          </p>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
+            <Btn size="lg" onClick={() => goAuth("signup")} icon={<Icon name="bolt" size={18} color="#fff" />}>Start Free</Btn>
+            <Btn size="lg" variant="ghost">
+              <Icon name="play" size={16} /> Watch Demo
+            </Btn>
+          </div>
+          <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textFaint, marginTop: 16 }}>No credit card. Works on any Android phone. English, Hausa, Yoruba & Igbo.</p>
+        </div>
+
+        {/* Product preview strip */}
+        <div style={{ marginTop: 56, display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap" }}>
+          <Card t={t} pad={18} style={{ width: 220, textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <GrowthRing value={78} size={56} stroke={6} dark={dark} />
+              <div>
+                <div style={{ fontFamily: "Inter", fontSize: 12, color: t.textMuted }}>Readiness Score</div>
+                <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15 }}>Ready to earn</div>
+              </div>
+            </div>
+          </Card>
+          <Card t={t} pad={18} style={{ width: 220, textAlign: "left" }}>
+            <Badge color={COLORS.blue}>Blueprint</Badge>
+            <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15, marginTop: 10 }}>Freelance Graphic Design</div>
+            <div style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textMuted, marginTop: 4 }}>Est. ₦80k–₦250k/mo · 8 weeks</div>
+          </Card>
+          <Card t={t} pad={18} style={{ width: 220, textAlign: "left" }}>
+            <Badge color={COLORS.orange}>AI Mentor</Badge>
+            <div style={{ fontFamily: "Inter", fontSize: 13, marginTop: 10, color: t.textMuted, fontStyle: "italic" }}>"Yau, mu duba yadda za ki farashin aikinki..."</div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div id="features" style={{ ...wrap, padding: "80px 24px" }}>
+        <div style={{ textAlign: "center", marginBottom: 46 }}>
+          <Badge color={COLORS.blue}>What you get</Badge>
+          <h2 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 36, marginTop: 14 }}>Everything between "unemployed" and "earning"</h2>
+        </div>
+        <div className="s2i-grid-features">
+          {features.map((f, i) => (
+            <Card t={t} key={i}>
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: COLORS.emeraldLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name={f.icon} size={20} color={COLORS.emeraldDark} />
+              </div>
+              <h3 style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 17, marginTop: 14 }}>{f.title}</h3>
+              <p style={{ fontFamily: "Inter", fontSize: 14, color: t.textMuted, marginTop: 6, lineHeight: 1.55 }}>{f.desc}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div id="how" style={{ background: t.bgElevated, padding: "80px 0", borderTop: `1px solid ${t.border}`, borderBottom: `1px solid ${t.border}` }}>
+        <div style={wrap}>
+          <div style={{ textAlign: "center", marginBottom: 46 }}>
+            <Badge color={COLORS.orange}>The path</Badge>
+            <h2 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 36, marginTop: 14 }}>How it works</h2>
+          </div>
+          <div className="s2i-grid-steps">
+            {steps.map((s) => (
+              <div key={s.n}>
+                <div style={{ fontFamily: "JetBrains Mono", fontWeight: 700, fontSize: 26, color: COLORS.emerald, opacity: 0.5 }}>{s.n}</div>
+                <h3 style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 16, marginTop: 8 }}>{s.title}</h3>
+                <p style={{ fontFamily: "Inter", fontSize: 13.5, color: t.textMuted, marginTop: 6, lineHeight: 1.5 }}>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Testimonials */}
+      <div id="stories" style={{ ...wrap, padding: "80px 24px" }}>
+        <div style={{ textAlign: "center", marginBottom: 46 }}>
+          <Badge color={COLORS.emerald}>Real journeys</Badge>
+          <h2 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 36, marginTop: 14 }}>People building real income</h2>
+        </div>
+        <div className="s2i-grid-testi">
+          {testimonials.map((tm, i) => (
+            <Card t={t} key={i}>
+              <div style={{ display: "flex", gap: 3, marginBottom: 12 }}>
+                {[...Array(5)].map((_, j) => <Icon key={j} name="star" size={14} color={COLORS.orange} />)}
+              </div>
+              <p style={{ fontFamily: "Inter", fontSize: 14.5, lineHeight: 1.6, color: t.text }}>"{tm.quote}"</p>
+              <div style={{ marginTop: 16, fontFamily: "Sora", fontWeight: 700, fontSize: 14 }}>{tm.name}</div>
+              <div style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textMuted }}>{tm.role}</div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Partners */}
+      <div style={{ padding: "40px 24px", borderTop: `1px solid ${t.border}` }}>
+        <div style={{ ...wrap, display: "flex", justifyContent: "center", gap: 46, flexWrap: "wrap", opacity: 0.55, fontFamily: "Sora", fontWeight: 700, fontSize: 15 }}>
+          <span>3MTT</span><span>NYSC</span><span>NITDA</span><span>SMEDAN</span><span>Paystack</span><span>Flutterwave</span>
+        </div>
+      </div>
+
+      {/* FAQ */}
+      <div id="faq" style={{ ...wrap, padding: "80px 24px", maxWidth: 780 }}>
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <Badge color={COLORS.blue}>Questions</Badge>
+          <h2 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 32, marginTop: 14 }}>Frequently asked</h2>
+        </div>
+        {faqs.map((f, i) => (
+          <div key={i} onClick={() => setOpenFaq(openFaq === i ? -1 : i)} style={{ borderBottom: `1px solid ${t.border}`, padding: "18px 0", cursor: "pointer" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 15.5 }}>{f.q}</span>
+              <span style={{ transform: openFaq === i ? "rotate(45deg)" : "rotate(0deg)", transition: "transform .2s" }}><Icon name="plus" size={18} /></span>
+            </div>
+            {openFaq === i && <p style={{ fontFamily: "Inter", fontSize: 14, color: t.textMuted, marginTop: 12, lineHeight: 1.6 }}>{f.a}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* CTA band */}
+      <div style={{ margin: "0 24px 80px", maxWidth: 1132, marginLeft: "auto", marginRight: "auto", borderRadius: 28, padding: "56px 32px", textAlign: "center", background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, color: "#fff" }}>
+        <h2 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 32 }}>Your income blueprint is 6 minutes away</h2>
+        <p style={{ fontFamily: "Inter", fontSize: 15, opacity: 0.9, marginTop: 10 }}>Free forever for the core tools. No card required.</p>
+        <div style={{ marginTop: 24 }}>
+          <Btn size="lg" style={{ background: "#fff", color: COLORS.emeraldDark, boxShadow: "none" }} onClick={() => goAuth("signup")}>Start Free →</Btn>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ borderTop: `1px solid ${t.border}`, padding: "40px 24px" }}>
+        <div style={{ ...wrap, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 24 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})` }} />
+              <span style={{ fontFamily: "Sora", fontWeight: 800 }}>Skill2Income</span>
+            </div>
+            <p style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textFaint, marginTop: 10, maxWidth: 240 }}>Economic mobility, powered by AI. Made in Kano, for Nigeria and Africa.</p>
+          </div>
+          <div style={{ display: "flex", gap: 60, flexWrap: "wrap" }}>
+            {["Product", "Company", "Legal"].map((h) => (
+              <div key={h}>
+                <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 13, marginBottom: 10 }}>{h}</div>
+                {["Link one", "Link two", "Link three"].map((l, j) => (
+                  <div key={j} style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted, marginBottom: 8 }}>{l}</div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ ...wrap, marginTop: 32, fontFamily: "Inter", fontSize: 12, color: t.textFaint }}>© 2026 Skill2Income. All rights reserved.</div>
+      </div>
+    </div>
+  );
+}
+
+
+function Auth({ t, dark, mode, setMode, onDone, back }) {
+  const [step, setStep] = useState("form"); // form | otp
+  const [method, setMethod] = useState("email");
+  const wrap = { maxWidth: 1180, margin: "0 auto" };
+  return (
+    <div style={{ background: t.bg, color: t.text, minHeight: "100vh", display: "flex" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          <div onClick={back} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", opacity: 0.6, marginBottom: 28, fontFamily: "Inter", fontSize: 13.5 }}>
+            <Icon name="arrowRight" size={14} color={t.text} style={{ transform: "rotate(180deg)" }} /> Back to home
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 30 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="bolt" size={18} color="#fff" />
+            </div>
+            <span style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 18 }}>Skill2Income</span>
+          </div>
+
+          {step === "form" && (
+            <>
+              <h1 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 26 }}>{mode === "signup" ? "Create your free account" : "Welcome back"}</h1>
+              <p style={{ fontFamily: "Inter", fontSize: 14, color: t.textMuted, marginTop: 6 }}>
+                {mode === "signup" ? "Your income roadmap starts here." : "Log in to continue your income blueprint."}
+              </p>
+
+              <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+                <SocialBtn t={t} label="Google" onClick={() => onDone()} />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0" }}>
+                <div style={{ flex: 1, height: 1, background: t.border }} /><span style={{ fontFamily: "Inter", fontSize: 12, color: t.textFaint }}>OR</span><div style={{ flex: 1, height: 1, background: t.border }} />
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                {["email", "phone"].map((m) => (
+                  <button key={m} onClick={() => setMethod(m)} style={{
+                    flex: 1, padding: "9px 0", borderRadius: 10, border: `1.5px solid ${method === m ? COLORS.emerald : t.border}`,
+                    background: method === m ? COLORS.emeraldLight : "transparent", color: method === m ? COLORS.emeraldDark : t.text,
+                    fontFamily: "Inter", fontWeight: 600, fontSize: 13, cursor: "pointer"
+                  }}>{m === "email" ? "Email" : "Phone number"}</button>
+                ))}
+              </div>
+
+              {mode === "signup" && <Input t={t} label="Full name" placeholder="Aisha Mohammed" />}
+              <Input t={t} label={method === "email" ? "Email address" : "Phone number"} placeholder={method === "email" ? "you@example.com" : "+234 801 234 5678"} />
+              <Input t={t} label="Password" placeholder="••••••••" type="password" />
+              {mode === "login" && <div style={{ textAlign: "right", marginTop: -8, marginBottom: 16 }}><span style={{ fontFamily: "Inter", fontSize: 12.5, color: COLORS.blue, cursor: "pointer" }}>Forgot password?</span></div>}
+
+              <Btn full size="lg" onClick={() => (method === "phone" ? setStep("otp") : onDone())} style={{ marginTop: 6 }}>
+                {mode === "signup" ? "Create account" : "Log in"}
+              </Btn>
+
+              <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted, textAlign: "center", marginTop: 20 }}>
+                {mode === "signup" ? "Already have an account? " : "New here? "}
+                <span onClick={() => setMode(mode === "signup" ? "login" : "signup")} style={{ color: COLORS.emerald, fontWeight: 600, cursor: "pointer" }}>
+                  {mode === "signup" ? "Log in" : "Create one"}
+                </span>
+              </p>
+            </>
+          )}
+
+          {step === "otp" && (
+            <>
+              <h1 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 24 }}>Verify your number</h1>
+              <p style={{ fontFamily: "Inter", fontSize: 14, color: t.textMuted, marginTop: 6 }}>We sent a 6-digit code by SMS. Enter it below.</p>
+              <div style={{ display: "flex", gap: 8, marginTop: 24, justifyContent: "center" }}>
+                {[...Array(6)].map((_, i) => (
+                  <input key={i} maxLength={1} style={{
+                    width: 46, height: 54, textAlign: "center", fontFamily: "JetBrains Mono", fontSize: 20, fontWeight: 700,
+                    borderRadius: 10, border: `1.5px solid ${t.border}`, background: t.bgElevated, color: t.text
+                  }} />
+                ))}
+              </div>
+              <Btn full size="lg" style={{ marginTop: 26 }} onClick={onDone}>Verify & continue</Btn>
+              <p style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textMuted, textAlign: "center", marginTop: 16 }}>Didn't get a code? <span style={{ color: COLORS.blue, fontWeight: 600, cursor: "pointer" }}>Resend</span></p>
+            </>
+          )}
+        </div>
+      </div>
+      <div style={{ flex: 1, background: `linear-gradient(160deg, ${COLORS.emeraldDark}, ${COLORS.blue})`, display: window.innerWidth < 900 ? "none" : "flex", alignItems: "center", justifyContent: "center", padding: 60 }}>
+        <div style={{ color: "#fff", maxWidth: 380 }}>
+          <Icon name="target" size={40} color="#fff" />
+          <h2 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 28, marginTop: 20, lineHeight: 1.25 }}>Join 40,000+ Nigerians building real income</h2>
+          <p style={{ fontFamily: "Inter", fontSize: 14, opacity: 0.85, marginTop: 14, lineHeight: 1.6 }}>From tailoring to tech, agriculture to freelancing — your personalized path starts with one assessment.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SocialBtn({ t, label, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "11px 0",
+      borderRadius: 10, border: `1.5px solid ${t.border}`, background: t.bgElevated, color: t.text,
+      fontFamily: "Inter", fontWeight: 600, fontSize: 14, cursor: "pointer"
+    }}>
+      <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.9 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.4 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.4 5.1 29.5 3 24 3 16.3 3 9.7 7.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.4 0 10.2-1.8 14-5.1l-6.5-5.5C29.4 36 26.9 37 24 37c-5.4 0-9.9-3.1-11.4-7.5l-6.5 5C9.6 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.5 5.5C41 35.8 44 30.4 44 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+      Continue with {label}
+    </button>
+  );
+}
+
+function Input({ t, label, placeholder, type = "text" }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 12.5, color: t.textMuted, display: "block", marginBottom: 6 }}>{label}</label>
+      <input type={type} placeholder={placeholder} style={{
+        width: "100%", padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${t.border}`,
+        background: t.bgElevated, color: t.text, fontFamily: "Inter", fontSize: 14, outline: "none"
+      }} onFocus={(e) => e.target.style.borderColor = COLORS.emerald} onBlur={(e) => e.target.style.borderColor = t.border} />
+    </div>
+  );
+}
+
+function Onboarding({ t, dark, onComplete }) {
+  const questions = [
+    { key: "age", title: "How old are you?", type: "chips", options: ["Under 18", "18–24", "25–34", "35–44", "45+"] },
+    { key: "location", title: "Which state are you in?", type: "text", placeholder: "e.g. Kano State" },
+    { key: "lga", title: "Which Local Government Area?", type: "text", placeholder: "e.g. Nassarawa LGA" },
+    { key: "education", title: "What's your highest education level?", type: "chips", options: ["No formal education", "Primary", "Secondary / WAEC", "OND/NCE", "HND/BSc", "Postgraduate"] },
+    { key: "languages", title: "Which languages are you comfortable working in?", type: "multi", options: ["English", "Hausa", "Yoruba", "Igbo", "Pidgin"] },
+    { key: "income", title: "What's your current monthly income?", type: "chips", options: ["₦0 (none)", "Under ₦20k", "₦20k–₦50k", "₦50k–₦150k", "₦150k+"] },
+    { key: "skills", title: "What skills do you already have?", type: "multi", options: ["Tailoring", "Phone/laptop repair", "Graphic design", "Writing", "Sales", "Farming", "Cooking/baking", "Driving", "Hairdressing/barbing", "None yet"] },
+    { key: "interests", title: "What kind of work interests you most?", type: "multi", options: ["Formal employment", "Freelancing online", "Starting a business", "Vocational trade", "Agriculture", "Not sure yet"] },
+    { key: "budget", title: "What's your monthly budget for training or tools?", type: "chips", options: ["₦0", "Under ₦5k", "₦5k–₦15k", "₦15k+"] },
+    { key: "internet", title: "How would you describe your internet access?", type: "chips", options: ["Rarely have data", "Occasional data/Wi-Fi", "Reliable daily access"] },
+    { key: "device", title: "What device do you use most?", type: "chips", options: ["Basic phone", "Android smartphone", "Laptop/PC", "Cyber café"] },
+    { key: "workstyle", title: "How do you prefer to work?", type: "chips", options: ["Alone", "In a small team", "Face-to-face with clients", "Fully remote"] },
+    { key: "availability", title: "How much time can you commit weekly?", type: "chips", options: ["Under 5 hrs", "5–15 hrs", "15–30 hrs", "30+ hrs (full time)"] },
+  ];
+
+  const [i, setI] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const q = questions[i];
+  const progress = Math.round(((i) / questions.length) * 100);
+
+  const setAns = (val) => setAnswers({ ...answers, [q.key]: val });
+  const toggleMulti = (opt) => {
+    const cur = answers[q.key] || [];
+    setAns(cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt]);
+  };
+  const canNext = q.type === "text" ? true : q.type === "multi" ? (answers[q.key] || []).length > 0 : !!answers[q.key];
+
+  const next = () => {
+    if (i < questions.length - 1) setI(i + 1);
+    else onComplete(answers);
+  };
+
+  return (
+    <div style={{ background: t.bg, color: t.text, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px" }}>
+      <div style={{ width: "100%", maxWidth: 560 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 30 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="bolt" size={16} color="#fff" />
+          </div>
+          <span style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 16 }}>Skill2Income</span>
+          <span style={{ marginLeft: "auto", fontFamily: "JetBrains Mono", fontSize: 12.5, color: t.textMuted }}>{i + 1} / {questions.length}</span>
+        </div>
+
+        <div style={{ height: 6, borderRadius: 999, background: t.border, overflow: "hidden", marginBottom: 34 }}>
+          <div style={{ height: "100%", width: `${progress}%`, background: `linear-gradient(90deg, ${COLORS.emerald}, ${COLORS.blue})`, transition: "width .4s ease" }} />
+        </div>
+
+        <Badge color={COLORS.orange}>AI Onboarding Assessment</Badge>
+        <h1 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 26, marginTop: 14, lineHeight: 1.3 }}>{q.title}</h1>
+
+        <div style={{ marginTop: 26 }}>
+          {q.type === "chips" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {q.options.map((opt) => (
+                <ChipRow key={opt} t={t} label={opt} active={answers[q.key] === opt} onClick={() => setAns(opt)} />
+              ))}
+            </div>
+          )}
+          {q.type === "multi" && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              {q.options.map((opt) => (
+                <Chip key={opt} t={t} label={opt} active={(answers[q.key] || []).includes(opt)} onClick={() => toggleMulti(opt)} />
+              ))}
+            </div>
+          )}
+          {q.type === "text" && (
+            <input autoFocus placeholder={q.placeholder} value={answers[q.key] || ""} onChange={(e) => setAns(e.target.value)} style={{
+              width: "100%", padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${t.border}`,
+              background: t.bgElevated, color: t.text, fontFamily: "Inter", fontSize: 16, outline: "none"
+            }} onFocus={(e) => e.target.style.borderColor = COLORS.emerald} />
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 34 }}>
+          {i > 0 && <Btn variant="ghost" onClick={() => setI(i - 1)}>Back</Btn>}
+          <Btn full={i === 0} onClick={next} style={{ opacity: canNext ? 1 : 0.4, pointerEvents: canNext ? "auto" : "none", flex: 1 }}>
+            {i === questions.length - 1 ? "See my score" : "Continue"}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChipRow({ t, label, active, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${active ? COLORS.emerald : t.border}`,
+      background: active ? COLORS.emeraldLight : t.bgElevated, color: active ? COLORS.emeraldDark : t.text,
+      fontFamily: "Inter", fontWeight: 600, fontSize: 14.5, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+      transition: "all .15s ease"
+    }}>
+      {label}
+      {active && <Icon name="check" size={16} color={COLORS.emeraldDark} />}
+    </div>
+  );
+}
+function Chip({ t, label, active, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      padding: "9px 16px", borderRadius: 999, border: `1.5px solid ${active ? COLORS.emerald : t.border}`,
+      background: active ? COLORS.emeraldLight : t.bgElevated, color: active ? COLORS.emeraldDark : t.text,
+      fontFamily: "Inter", fontWeight: 600, fontSize: 13.5, cursor: "pointer"
+    }}>{label}</div>
+  );
+}
+
+function computeProfile(answers) {
+  // simple deterministic mock scoring from onboarding answers
+  let score = 42;
+  const skills = answers.skills || [];
+  const interests = answers.interests || [];
+  if (!skills.includes("None yet")) score += skills.length * 6;
+  if ((answers.internet || "").includes("Reliable")) score += 10;
+  if ((answers.device || "") === "Laptop/PC" || answers.device === "Android smartphone") score += 8;
+  if ((answers.availability || "").includes("30+") || (answers.availability || "").includes("15")) score += 8;
+  score = Math.min(96, Math.max(28, score));
+
+  let path = "Digital Freelancing — Graphic Design";
+  if (interests.includes("Vocational trade") || skills.includes("Tailoring")) path = "Vocational Trade — Tailoring & Fashion";
+  else if (interests.includes("Agriculture") || skills.includes("Farming")) path = "Agribusiness — Poultry & Crop Farming";
+  else if (interests.includes("Starting a business")) path = "Micro-Business — Retail & Trading";
+  else if (interests.includes("Formal employment")) path = "Formal Employment — Administrative & Sales Roles";
+  else if (skills.includes("Graphic design") || skills.includes("Writing")) path = "Digital Freelancing — Content & Design";
+
+  return { score, path };
+}
+
+function Results({ t, dark, answers, onContinue }) {
+  const { score, path } = useMemo(() => computeProfile(answers), [answers]);
+  const breakdown = [
+    { label: "Skills readiness", value: Math.min(95, 40 + (answers.skills || []).length * 8), color: COLORS.emerald },
+    { label: "Digital access", value: (answers.internet || "").includes("Reliable") ? 88 : (answers.internet || "").includes("Occasional") ? 58 : 30, color: COLORS.blue },
+    { label: "Time availability", value: (answers.availability || "").includes("30+") ? 92 : (answers.availability || "").includes("15") ? 68 : 40, color: COLORS.orange },
+    { label: "Financial runway", value: (answers.budget || "") === "₦0" ? 25 : (answers.budget || "").includes("15k+") ? 82 : 55, color: "#8B5CF6" },
+  ];
+  const [stage, setStage] = useState("score");
+
+  return (
+    <div style={{ background: t.bg, color: t.text, minHeight: "100vh", padding: "40px 20px", display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 640 }}>
+        {stage === "score" && (
+          <div style={{ textAlign: "center" }}>
+            <Badge color={COLORS.emerald}>Assessment complete</Badge>
+            <h1 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 28, marginTop: 14 }}>Your Income Readiness Score</h1>
+            <p style={{ fontFamily: "Inter", fontSize: 14.5, color: t.textMuted, marginTop: 8 }}>Based on your skills, access, time, and budget.</p>
+
+            <div style={{ display: "flex", justifyContent: "center", margin: "36px 0" }}>
+              <GrowthRing value={score} size={180} stroke={14} dark={dark} label="/ 100" />
+            </div>
+
+            <Card t={t} style={{ textAlign: "left" }}>
+              <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Score breakdown</div>
+              {breakdown.map((b) => (
+                <div key={b.label} style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter", fontSize: 13, marginBottom: 6 }}>
+                    <span style={{ color: t.textMuted }}>{b.label}</span>
+                    <span style={{ fontFamily: "JetBrains Mono", fontWeight: 700 }}>{b.value}</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 999, background: t.border, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${b.value}%`, background: b.color, borderRadius: 999 }} />
+                  </div>
+                </div>
+              ))}
+            </Card>
+
+            <Card t={t} style={{ textAlign: "left", marginTop: 16, borderColor: COLORS.orange + "55" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <Icon name="bolt" size={18} color={COLORS.orange} />
+                <div>
+                  <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14 }}>To improve your score</div>
+                  <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted, marginTop: 4, lineHeight: 1.55 }}>
+                    Complete 2 short skill modules this week and log your first income entry — this alone can raise your score by 8–12 points.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Btn full size="lg" style={{ marginTop: 24 }} onClick={() => setStage("blueprint")}>See my Income Blueprint →</Btn>
+          </div>
+        )}
+
+        {stage === "blueprint" && (
+          <div>
+            <Badge color={COLORS.blue}>Your personal blueprint</Badge>
+            <h1 style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 26, marginTop: 14 }}>{path}</h1>
+            <p style={{ fontFamily: "Inter", fontSize: 14, color: t.textMuted, marginTop: 6 }}>Generated from your assessment. You can adjust this anytime from your dashboard.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 22 }}>
+              <StatCard t={t} label="Expected income range" value="₦80k – ₦250k" sub="per month, by month 3" />
+              <StatCard t={t} label="Learning timeline" value="8 weeks" sub="at 8 hrs/week" />
+              <StatCard t={t} label="Risk level" value="Low–Medium" sub="high local demand" />
+              <StatCard t={t} label="Required budget" value="₦12,000" sub="tools & first materials" />
+            </div>
+
+            <Card t={t} style={{ marginTop: 16 }}>
+              <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Milestones</div>
+              {[
+                { w: "Week 1–2", t: "Foundation skills", d: "Complete core skill modules and set up your workspace/portfolio." },
+                { w: "Week 3–4", t: "First practice work", d: "Take on 2–3 practice or discounted jobs to build proof of work." },
+                { w: "Week 5–6", t: "First paid client", d: "Apply through the Opportunity Engine; AI mentor helps you price and pitch." },
+                { w: "Week 7–8", t: "Repeatable income", d: "Systematize delivery, ask for referrals, track income growth." },
+              ].map((m, idx, arr) => (
+                <div key={idx} style={{ display: "flex", gap: 14 }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.emerald, marginTop: 4 }} />
+                    {idx < arr.length - 1 && <div style={{ width: 2, flex: 1, background: t.border, minHeight: 34 }} />}
+                  </div>
+                  <div style={{ paddingBottom: 20 }}>
+                    <div style={{ fontFamily: "JetBrains Mono", fontSize: 11.5, color: COLORS.emerald, fontWeight: 700 }}>{m.w}</div>
+                    <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14.5, marginTop: 2 }}>{m.t}</div>
+                    <div style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textMuted, marginTop: 3 }}>{m.d}</div>
+                  </div>
+                </div>
+              ))}
+            </Card>
+
+            <Btn full size="lg" style={{ marginTop: 20 }} onClick={onContinue}>Go to my Dashboard →</Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ t, label, value, sub }) {
+  return (
+    <Card t={t} pad={16}>
+      <div style={{ fontFamily: "Inter", fontSize: 12, color: t.textMuted }}>{label}</div>
+      <div style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 19, marginTop: 4 }}>{value}</div>
+      <div style={{ fontFamily: "Inter", fontSize: 11.5, color: t.textFaint, marginTop: 2 }}>{sub}</div>
+    </Card>
+  );
+}
+
+const NAV_ITEMS = [
+  { key: "home", label: "Dashboard", icon: "grid" },
+  { key: "jobs", label: "Jobs", icon: "briefcase" },
+  { key: "learning", label: "Learning", icon: "book" },
+  { key: "business", label: "BusinessAI", icon: "target" },
+  { key: "freelance", label: "FreelanceAI", icon: "file" },
+  { key: "finance", label: "FinanceAI", icon: "coin" },
+  { key: "opportunities", label: "Opportunity Engine", icon: "globe" },
+  { key: "cv", label: "CV Builder", icon: "file" },
+  { key: "interview", label: "Interview Coach", icon: "mic" },
+  { key: "tracker", label: "Income Tracker", icon: "chart" },
+  { key: "achievements", label: "Achievements", icon: "trophy" },
+];
+
+function Dashboard({ t, dark, setDark, profile }) {
+  const [tab, setTab] = useState("home");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
+
+  return (
+    <div style={{ background: t.bg, color: t.text, minHeight: "100vh", display: "flex" }}>
+      <style>{`
+        .s2i-scroll::-webkit-scrollbar{width:6px;height:6px;}
+        .s2i-scroll::-webkit-scrollbar-thumb{background:rgba(120,120,120,.3);border-radius:99px;}
+        .s2i-cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+        .s2i-cards2{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+        @media (max-width:1100px){ .s2i-cards{grid-template-columns:repeat(2,1fr);} .s2i-cards2{grid-template-columns:repeat(2,1fr);} }
+        @media (max-width:640px){ .s2i-cards{grid-template-columns:1fr;} .s2i-cards2{grid-template-columns:1fr;} .s2i-sidebar{display:none !important;} }
+      `}</style>
+
+      {/* Sidebar */}
+      <div className="s2i-sidebar" style={{ width: 240, borderRight: `1px solid ${t.border}`, padding: "20px 14px", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 26 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="bolt" size={16} color="#fff" />
+          </div>
+          <span style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 16 }}>Skill2Income</span>
+        </div>
+        <div className="s2i-scroll" style={{ overflowY: "auto", flex: 1 }}>
+          {NAV_ITEMS.map((item) => (
+            <div key={item.key} onClick={() => setTab(item.key)} style={{
+              display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+              background: tab === item.key ? COLORS.emeraldLight : "transparent",
+              color: tab === item.key ? COLORS.emeraldDark : t.text, marginBottom: 2,
+              fontFamily: "Inter", fontWeight: 600, fontSize: 13.5
+            }}>
+              <Icon name={item.icon} size={17} color={tab === item.key ? COLORS.emeraldDark : t.textMuted} />
+              {item.label}
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 12, marginTop: 12 }}>
+          <div onClick={() => setDark(!dark)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 10, cursor: "pointer", color: t.textMuted, fontFamily: "Inter", fontWeight: 600, fontSize: 13.5 }}>
+            <Icon name={dark ? "sun" : "moon"} size={17} /> {dark ? "Light mode" : "Dark mode"}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 10, cursor: "pointer", color: t.textMuted, fontFamily: "Inter", fontWeight: 600, fontSize: 13.5 }}>
+            <Icon name="settings" size={17} /> Settings
+          </div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Topbar */}
+        <div style={{ height: 64, borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", position: "sticky", top: 0, background: t.nav, backdropFilter: "blur(10px)", zIndex: 10 }}>
+          <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 16 }}>{NAV_ITEMS.find((n) => n.key === tab)?.label}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <Icon name="bell" size={18} color={t.textMuted} />
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: `linear-gradient(135deg, ${COLORS.orange}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "Sora", fontWeight: 700, fontSize: 13 }}>AM</div>
+          </div>
+        </div>
+
+        <div style={{ padding: 24, maxWidth: 1180 }}>
+          {tab === "home" && <HomeView t={t} dark={dark} profile={profile} />}
+          {tab === "jobs" && <JobsView t={t} />}
+          {tab === "learning" && <LearningView t={t} dark={dark} />}
+          {tab === "business" && <BusinessView t={t} />}
+          {tab === "freelance" && <FreelanceView t={t} />}
+          {tab === "finance" && <FinanceView t={t} />}
+          {tab === "opportunities" && <OpportunitiesView t={t} />}
+          {tab === "cv" && <CvView t={t} />}
+          {tab === "interview" && <InterviewView t={t} />}
+          {tab === "tracker" && <TrackerView t={t} />}
+          {tab === "achievements" && <AchievementsView t={t} />}
+        </div>
+      </div>
+
+      {/* AI Chat FAB + panel */}
+      <div onClick={() => setChatOpen(true)} style={{
+        position: "fixed", bottom: 24, right: 24, width: 58, height: 58, borderRadius: "50%",
+        background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, display: chatOpen ? "none" : "flex",
+        alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 10px 26px -8px rgba(22,163,74,0.55)", zIndex: 30
+      }}>
+        <Icon name="chat" size={24} color="#fff" />
+      </div>
+      {chatOpen && <ChatPanel t={t} dark={dark} onClose={() => setChatOpen(false)} />}
+    </div>
+  );
+}
+
+function HomeView({ t, dark, profile }) {
+  const score = profile?.score ?? 78;
+  return (
+    <div>
+      <Card t={t} style={{ background: `linear-gradient(120deg, ${COLORS.emeraldDark}, ${COLORS.blue})`, color: "#fff", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
+          <div>
+            <div style={{ fontFamily: "Inter", fontSize: 13, opacity: 0.85 }}>Welcome back</div>
+            <div style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 22, marginTop: 4 }}>Amina, you're 3 tasks from a new streak record 🔥</div>
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <Btn style={{ background: "#fff", color: COLORS.emeraldDark, boxShadow: "none" }}>Continue roadmap</Btn>
+              <Btn variant="ghost" style={{ borderColor: "rgba(255,255,255,.5)" }}>View blueprint</Btn>
+            </div>
+          </div>
+          <GrowthRing value={score} size={100} stroke={9} dark={dark} label="Score" />
+        </div>
+      </Card>
+
+      <div className="s2i-cards" style={{ marginBottom: 16 }}>
+        <MiniStat t={t} icon="target" color={COLORS.emerald} label="Readiness Score" value={score} sub="+6 this week" />
+        <MiniStat t={t} icon="chart" color={COLORS.blue} label="Income Growth" value="₦64,000" sub="+18% vs last month" />
+        <MiniStat t={t} icon="book" color={COLORS.orange} label="Learning Progress" value="62%" sub="Module 5 of 8" />
+        <MiniStat t={t} icon="trophy" color="#8B5CF6" label="Level" value="7" sub="1,240 XP" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }} className="s2i-cards2">
+        <Card t={t}>
+          <SectionTitle t={t} icon="target" title="Current Roadmap" action="View full blueprint" />
+          <RoadmapRow t={t} step="Foundation skills" status="done" />
+          <RoadmapRow t={t} step="First practice work" status="active" />
+          <RoadmapRow t={t} step="First paid client" status="upcoming" />
+          <RoadmapRow t={t} step="Repeatable income" status="upcoming" />
+        </Card>
+
+        <Card t={t}>
+          <SectionTitle t={t} icon="check" title="Today's Tasks" />
+          {[
+            { l: "Complete 'Pricing your first gig' lesson", done: true },
+            { l: "Message AI mentor about client pitch", done: true },
+            { l: "Apply to 2 matched gigs", done: false },
+            { l: "Log this week's income", done: false },
+          ].map((task, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: i < 3 ? `1px solid ${t.border}` : "none" }}>
+              <div style={{ width: 18, height: 18, borderRadius: 6, border: `2px solid ${task.done ? COLORS.emerald : t.border}`, background: task.done ? COLORS.emerald : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {task.done && <Icon name="check" size={11} color="#fff" />}
+              </div>
+              <span style={{ fontFamily: "Inter", fontSize: 13.5, textDecoration: task.done ? "line-through" : "none", opacity: task.done ? 0.5 : 1 }}>{task.l}</span>
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }} className="s2i-cards2">
+        <Card t={t}>
+          <SectionTitle t={t} icon="briefcase" title="Recommended Jobs" action="See all" />
+          {[
+            { r: "Junior Graphic Designer (Remote)", m: 92, pay: "₦120k/mo" },
+            { r: "Social Media Content Creator", m: 84, pay: "₦70k/mo" },
+          ].map((j, i) => (
+            <div key={i} style={{ padding: "10px 0", borderBottom: i === 0 ? `1px solid ${t.border}` : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 13.5 }}>{j.r}</span>
+                <Badge color={COLORS.emerald}>{j.m}% match</Badge>
+              </div>
+              <div style={{ fontFamily: "Inter", fontSize: 12, color: t.textMuted, marginTop: 3 }}>{j.pay}</div>
+            </div>
+          ))}
+        </Card>
+
+        <Card t={t}>
+          <SectionTitle t={t} icon="calendar" title="Calendar" />
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+              <div key={i} style={{ flex: 1, textAlign: "center" }}>
+                <div style={{ fontFamily: "Inter", fontSize: 11, color: t.textFaint, marginBottom: 6 }}>{d}</div>
+                <div style={{
+                  width: 30, height: 30, borderRadius: "50%", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "JetBrains Mono", fontSize: 12, fontWeight: 700,
+                  background: i === 3 ? COLORS.emerald : "transparent", color: i === 3 ? "#fff" : t.text
+                }}>{9 + i}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 14, padding: 10, borderRadius: 10, background: dark ? "#1B2A1B" : COLORS.emeraldLight }}>
+            <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 12.5, color: COLORS.emeraldDark }}>2:00 PM — Mock interview practice</div>
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <Card t={t}>
+          <SectionTitle t={t} icon="chat" title="Recent Activity" />
+          {[
+            "Completed lesson: Pricing your first gig",
+            "Applied to Junior Graphic Designer role",
+            "Logged ₦18,000 income from freelance job",
+            "Earned badge: 7-Day Streak",
+          ].map((a, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.blue }} /> {a}
+            </div>
+          ))}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ t, icon, color, label, value, sub }) {
+  return (
+    <Card t={t} pad={16}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: color + "1A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon name={icon} size={16} color={color} />
+      </div>
+      <div style={{ fontFamily: "Inter", fontSize: 12, color: t.textMuted, marginTop: 10 }}>{label}</div>
+      <div style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 21 }}>{value}</div>
+      <div style={{ fontFamily: "Inter", fontSize: 11.5, color: COLORS.emerald, marginTop: 2 }}>{sub}</div>
+    </Card>
+  );
+}
+
+function SectionTitle({ t, icon, title, action }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name={icon} size={16} color={t.textMuted} />
+        <span style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14.5 }}>{title}</span>
+      </div>
+      {action && <span style={{ fontFamily: "Inter", fontSize: 12, color: COLORS.blue, cursor: "pointer" }}>{action}</span>}
+    </div>
+  );
+}
+
+function RoadmapRow({ t, step, status }) {
+  const cfg = { done: { c: COLORS.emerald, label: "Done" }, active: { c: COLORS.blue, label: "In progress" }, upcoming: { c: t.textFaint, label: "Upcoming" } }[status];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${t.border}` }}>
+      <div style={{ width: 10, height: 10, borderRadius: "50%", background: cfg.c, flexShrink: 0 }} />
+      <span style={{ fontFamily: "Inter", fontSize: 13.5, fontWeight: 600, flex: 1 }}>{step}</span>
+      <Badge color={cfg.c}>{cfg.label}</Badge>
+    </div>
+  );
+}
+
+const CHAT_MODES = [
+  { key: "career", label: "Career advice" },
+  { key: "business", label: "Business advice" },
+  { key: "finance", label: "Financial advice" },
+  { key: "learning", label: "Learning coach" },
+  { key: "interview", label: "Interview practice" },
+  { key: "entrepreneur", label: "Entrepreneurship" },
+];
+const LANGS = ["English", "Hausa", "Yoruba", "Igbo"];
+
+const MOCK_REPLIES = {
+  English: "Based on your profile, I'd suggest pricing your first graphic design gig at ₦15,000–₦25,000. Want me to help you draft a proposal?",
+  Hausa: "Bisa la'akari da bayananka, ina ba da shawarar ka fara sanya farashin aikin zanen ka a ₦15,000 zuwa ₦25,000. Kana so in taimaka maka wajen rubuta shawarar aiki?",
+  Yoruba: "Da lori profaili rẹ, mo dabaa ki o wa idiyele iṣẹ apẹrẹ akọkọ rẹ ni ₦15,000 si ₦25,000. Ṣe o fẹ ki n ran ọ lọwọ lati kọ imọran kan?",
+  Igbo: "Dabere na profaịlụ gị, m na-atụ aro ka ị tọọ ọnụ ahịa ọrụ mmezi ihe mbụ gị na ₦15,000 ruo ₦25,000. Ị chọrọ ka m nyere gị aka dee atụmatụ?",
+};
+
+function ChatPanel({ t, dark, onClose }) {
+  const [mode, setMode] = useState("career");
+  const [lang, setLang] = useState("English");
+  const [messages, setMessages] = useState([
+    { role: "ai", text: "Hi Amina! I'm your AI mentor. Ask me about your career, business, money, or interview prep — I remember our past conversations." },
+  ]);
+  const [input, setInput] = useState("");
+  const scrollRef = useRef(null);
+
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
+
+  const send = () => {
+    if (!input.trim()) return;
+    const userMsg = { role: "user", text: input };
+    setMessages((m) => [...m, userMsg]);
+    setInput("");
+    setTimeout(() => {
+      setMessages((m) => [...m, { role: "ai", text: MOCK_REPLIES[lang] }]);
+    }, 700);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 0, right: 0, width: 400, maxWidth: "100vw", height: "min(640px, 100vh)",
+      background: t.bgElevated, borderLeft: `1px solid ${t.border}`, borderTop: `1px solid ${t.border}`,
+      borderRadius: "18px 0 0 0", boxShadow: "0 -10px 40px rgba(0,0,0,0.15)", zIndex: 50,
+      display: "flex", flexDirection: "column", overflow: "hidden"
+    }}>
+      <div style={{ padding: "16px 18px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${COLORS.emerald}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="chat" size={15} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14 }}>AI Mentor</div>
+            <div style={{ fontFamily: "Inter", fontSize: 11, color: COLORS.emerald }}>● Online</div>
+          </div>
+        </div>
+        <Icon name="x" size={18} color={t.textMuted} onClick={onClose} style={{ cursor: "pointer" }} />
+      </div>
+
+      <div style={{ display: "flex", gap: 6, padding: "10px 14px", overflowX: "auto" }} className="s2i-scroll">
+        {CHAT_MODES.map((m) => (
+          <div key={m.key} onClick={() => setMode(m.key)} style={{
+            padding: "6px 12px", borderRadius: 999, whiteSpace: "nowrap", cursor: "pointer",
+            fontFamily: "Inter", fontWeight: 600, fontSize: 11.5,
+            background: mode === m.key ? COLORS.emerald : "transparent",
+            color: mode === m.key ? "#fff" : t.textMuted,
+            border: `1px solid ${mode === m.key ? COLORS.emerald : t.border}`
+          }}>{m.label}</div>
+        ))}
+      </div>
+
+      <div style={{ padding: "0 14px 8px", display: "flex", gap: 6 }}>
+        {LANGS.map((l) => (
+          <div key={l} onClick={() => setLang(l)} style={{
+            padding: "4px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "Inter", fontSize: 11, fontWeight: 600,
+            background: lang === l ? COLORS.blueLight : "transparent", color: lang === l ? COLORS.blue : t.textFaint
+          }}>{l}</div>
+        ))}
+      </div>
+
+      <div ref={scrollRef} className="s2i-scroll" style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 10 }}>
+            <div style={{
+              maxWidth: "80%", padding: "10px 13px", borderRadius: 14,
+              borderBottomRightRadius: m.role === "user" ? 3 : 14, borderBottomLeftRadius: m.role === "ai" ? 3 : 14,
+              background: m.role === "user" ? COLORS.emerald : (dark ? "#1D231D" : "#F1F3EF"),
+              color: m.role === "user" ? "#fff" : t.text, fontFamily: "Inter", fontSize: 13.5, lineHeight: 1.5
+            }}>{m.text}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: 12, borderTop: `1px solid ${t.border}`, display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: dark ? "#1D231D" : "#F1F3EF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <Icon name="mic" size={16} color={t.textMuted} />
+        </div>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          placeholder={`Message in ${lang}...`}
+          style={{ flex: 1, padding: "10px 14px", borderRadius: 999, border: `1.5px solid ${t.border}`, background: t.bgElevated, color: t.text, fontFamily: "Inter", fontSize: 13.5, outline: "none" }}
+        />
+        <div onClick={send} style={{ width: 36, height: 36, borderRadius: "50%", background: COLORS.emerald, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <Icon name="send" size={15} color="#fff" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Jobs ---------------- */
+function JobsView({ t }) {
+  const jobs = [
+    { title: "Junior Graphic Designer", co: "Zenith Creatives", loc: "Remote · Nigeria", pay: "₦100k–₦140k/mo", match: 92, tags: ["Design", "Remote"] },
+    { title: "Social Media Manager", co: "Kano Retail Hub", loc: "Kano, Nigeria", pay: "₦70k–₦90k/mo", match: 84, tags: ["Marketing", "On-site"] },
+    { title: "Data Entry Specialist", co: "Flow Logistics", loc: "Remote · Nigeria", pay: "₦45k–₦60k/mo", match: 77, tags: ["Entry-level", "Remote"] },
+    { title: "Customer Support Agent (Hausa/English)", co: "PayFast NG", loc: "Remote · Nigeria", pay: "₦80k/mo", match: 71, tags: ["Bilingual", "Remote"] },
+  ];
+  const [tab, setTab] = useState("search");
+  return (
+    <div>
+      <TabRow t={t} tabs={[["search", "Smart Search"], ["saved", "Saved"], ["tracker", "Application Tracker"]]} tab={tab} setTab={setTab} />
+      {tab === "search" && (
+        <>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <SearchBox t={t} placeholder="Search jobs, e.g. 'remote design'" />
+            <Btn variant="subtle">Filters</Btn>
+          </div>
+          {jobs.map((j, i) => (
+            <Card t={t} key={i} style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15.5 }}>{j.title}</div>
+                  <div style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textMuted, marginTop: 3 }}>{j.co} · {j.loc}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    {j.tags.map((tag) => <Badge key={tag} color={COLORS.blue}>{tag}</Badge>)}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <GrowthRing value={j.match} size={54} stroke={5} dark={false} />
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, borderTop: `1px solid ${t.border}`, paddingTop: 12 }}>
+                <span style={{ fontFamily: "JetBrains Mono", fontWeight: 700, fontSize: 13.5, color: COLORS.emeraldDark }}>{j.pay}</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn size="sm" variant="ghost">Save</Btn>
+                  <Btn size="sm">Apply now</Btn>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
+      {tab === "saved" && <EmptyState t={t} icon="briefcase" title="No saved jobs yet" desc="Tap 'Save' on any job to keep it here for later." />}
+      {tab === "tracker" && (
+        <Card t={t}>
+          {["Applied", "In review", "Interview", "Offer"].map((stage, i) => (
+            <div key={stage} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < 3 ? `1px solid ${t.border}` : "none" }}>
+              <div style={{ width: 26, height: 26, borderRadius: "50%", background: i < 2 ? COLORS.emerald : t.border, color: i < 2 ? "#fff" : t.textMuted, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "JetBrains Mono", fontSize: 11, fontWeight: 700 }}>{i + 1}</div>
+              <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 13.5 }}>{stage}</span>
+              <span style={{ marginLeft: "auto", fontFamily: "Inter", fontSize: 12, color: t.textMuted }}>{i < 2 ? "2 applications" : "0 applications"}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Learning ---------------- */
+function LearningView({ t, dark }) {
+  const courses = [
+    { title: "Graphic Design Fundamentals", prog: 100, cert: true },
+    { title: "Pricing & Client Communication", prog: 65 },
+    { title: "Portfolio Building with Canva", prog: 30 },
+    { title: "Intro to Digital Marketing", prog: 0 },
+  ];
+  return (
+    <div>
+      <div className="s2i-cards2" style={{ marginBottom: 16 }}>
+        <MiniStat t={t} icon="book" color={COLORS.blue} label="Courses in progress" value="3" sub="2 completed" />
+        <MiniStat t={t} icon="trophy" color={COLORS.orange} label="Certificates earned" value="1" sub="Shareable on LinkedIn" />
+        <MiniStat t={t} icon="target" color={COLORS.emerald} label="Overall progress" value="62%" sub="On track" />
+      </div>
+      {courses.map((c, i) => (
+        <Card t={t} key={i} style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14.5 }}>{c.title}</span>
+            {c.cert && <Badge color={COLORS.orange}>Certified</Badge>}
+          </div>
+          <div style={{ height: 8, borderRadius: 999, background: t.border, marginTop: 12, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${c.prog}%`, background: `linear-gradient(90deg, ${COLORS.emerald}, ${COLORS.blue})` }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+            <span style={{ fontFamily: "JetBrains Mono", fontSize: 12, color: t.textMuted }}>{c.prog}% complete</span>
+            <span style={{ fontFamily: "Inter", fontSize: 12.5, color: COLORS.blue, cursor: "pointer" }}>{c.prog === 0 ? "Start" : "Continue"}</span>
+          </div>
+        </Card>
+      ))}
+      <Card t={t} style={{ marginTop: 4, borderColor: COLORS.blue + "55" }}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Icon name="chat" size={18} color={COLORS.blue} />
+          <div>
+            <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14 }}>Stuck on a concept?</div>
+            <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted, marginTop: 4 }}>Ask your AI mentor to explain any lesson in simpler terms, or in Hausa, Yoruba, or Igbo.</p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------- BusinessAI ---------------- */
+function BusinessView({ t }) {
+  const [tab, setTab] = useState("ideas");
+  return (
+    <div>
+      <TabRow t={t} tabs={[["ideas", "Business Ideas"], ["plan", "Business Plan"], ["swot", "SWOT"], ["breakeven", "Break-even"]]} tab={tab} setTab={setTab} />
+      {tab === "ideas" && (
+        <div className="s2i-cards2">
+          {[
+            { n: "Mobile phone accessories retail", cost: "₦45,000 startup", risk: "Low" },
+            { n: "Eco-friendly paint mixing service", cost: "₦120,000 startup", risk: "Medium" },
+            { n: "Home-delivered meal prep", cost: "₦60,000 startup", risk: "Medium" },
+          ].map((b, i) => (
+            <Card t={t} key={i}>
+              <Badge color={COLORS.emerald}>{b.risk} risk</Badge>
+              <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15, marginTop: 10 }}>{b.n}</div>
+              <div style={{ fontFamily: "Inter", fontSize: 12.5, color: t.textMuted, marginTop: 4 }}>{b.cost}</div>
+              <Btn size="sm" variant="subtle" style={{ marginTop: 12 }} full>Generate full plan</Btn>
+            </Card>
+          ))}
+        </div>
+      )}
+      {tab === "plan" && (
+        <Card t={t}>
+          {["Executive summary", "Market analysis", "Marketing strategy", "Startup costs", "Financial projection (12mo)", "Business model canvas"].map((s, i) => (
+            <div key={i} style={{ padding: "12px 0", borderBottom: i < 5 ? `1px solid ${t.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 13.5 }}>{s}</span>
+              <Icon name="arrowRight" size={15} color={t.textMuted} />
+            </div>
+          ))}
+        </Card>
+      )}
+      {tab === "swot" && (
+        <div className="s2i-cards2">
+          {[["Strengths", COLORS.emerald, "Low overhead, growing local demand"], ["Weaknesses", COLORS.orange, "Limited starting capital"], ["Opportunities", COLORS.blue, "Underserved LGAs nearby"], ["Threats", "#DC2626", "Seasonal demand swings"]].map(([label, color, txt]) => (
+            <Card t={t} key={label}>
+              <Badge color={color}>{label}</Badge>
+              <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted, marginTop: 10 }}>{txt}</p>
+            </Card>
+          ))}
+        </div>
+      )}
+      {tab === "breakeven" && (
+        <Card t={t}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter", fontSize: 13.5, marginBottom: 8 }}>
+            <span style={{ color: t.textMuted }}>Fixed costs / month</span><span style={{ fontFamily: "JetBrains Mono", fontWeight: 700 }}>₦35,000</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter", fontSize: 13.5, marginBottom: 8 }}>
+            <span style={{ color: t.textMuted }}>Price per unit</span><span style={{ fontFamily: "JetBrains Mono", fontWeight: 700 }}>₦2,500</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter", fontSize: 13.5, marginBottom: 14 }}>
+            <span style={{ color: t.textMuted }}>Cost per unit</span><span style={{ fontFamily: "JetBrains Mono", fontWeight: 700 }}>₦1,000</span>
+          </div>
+          <div style={{ padding: 14, borderRadius: 12, background: COLORS.emeraldLight }}>
+            <span style={{ fontFamily: "Sora", fontWeight: 700, color: COLORS.emeraldDark }}>Break-even: 24 units/month</span>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- FreelanceAI ---------------- */
+function FreelanceView({ t }) {
+  return (
+    <div className="s2i-cards2">
+      <Card t={t}><SectionTitle t={t} icon="file" title="Portfolio Builder" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>3 of 5 projects added.</p><Btn size="sm" style={{ marginTop: 10 }}>Edit portfolio</Btn></Card>
+      <Card t={t}><SectionTitle t={t} icon="chat" title="Proposal Generator" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>AI drafts a tailored proposal from any job post.</p><Btn size="sm" variant="secondary" style={{ marginTop: 10 }}>New proposal</Btn></Card>
+      <Card t={t}><SectionTitle t={t} icon="globe" title="Gig Finder" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>14 new gigs matched to your skills this week.</p><Btn size="sm" variant="subtle" style={{ marginTop: 10 }}>Browse gigs</Btn></Card>
+      <Card t={t}><SectionTitle t={t} icon="coin" title="Pricing Assistant" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>Suggested rate: ₦15,000–₦25,000 per logo project.</p></Card>
+      <Card t={t}><SectionTitle t={t} icon="target" title="Profile Optimization" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>Your profile is 78% optimized. Add 2 more samples.</p></Card>
+      <Card t={t}><SectionTitle t={t} icon="users" title="Client Tracker" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>2 active clients, 1 awaiting response.</p></Card>
+    </div>
+  );
+}
+
+/* ---------------- FinanceAI ---------------- */
+function FinanceView({ t }) {
+  return (
+    <div>
+      <div className="s2i-cards2" style={{ marginBottom: 16 }}>
+        <MiniStat t={t} icon="coin" color={COLORS.emerald} label="This month's income" value="₦64,000" sub="+18%" />
+        <MiniStat t={t} icon="chart" color={COLORS.orange} label="Expenses" value="₦31,500" sub="49% of income" />
+        <MiniStat t={t} icon="target" color={COLORS.blue} label="Savings goal" value="42%" sub="₦42k of ₦100k" />
+      </div>
+      <Card t={t} style={{ marginBottom: 16 }}>
+        <SectionTitle t={t} icon="target" title="Budget Planner" />
+        {[["Housing & feeding", 60], ["Business tools", 20], ["Savings", 15], ["Other", 5]].map(([l, v]) => (
+          <div key={l} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter", fontSize: 13, marginBottom: 5 }}><span>{l}</span><span style={{ color: t.textMuted }}>{v}%</span></div>
+            <div style={{ height: 7, borderRadius: 99, background: t.border }}><div style={{ height: "100%", width: `${v}%`, borderRadius: 99, background: COLORS.blue }} /></div>
+          </div>
+        ))}
+      </Card>
+      <Card t={t}>
+        <SectionTitle t={t} icon="shield" title="Emergency Fund" />
+        <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>Goal: 3 months of expenses (₦94,500). You're 26% there.</p>
+        <div style={{ height: 8, borderRadius: 99, background: t.border, marginTop: 10 }}><div style={{ height: "100%", width: "26%", borderRadius: 99, background: COLORS.emerald }} /></div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------- Opportunity Engine ---------------- */
+function OpportunitiesView({ t }) {
+  const items = [
+    { type: "Grant", name: "SMEDAN Youth Enterprise Grant", tag: COLORS.emerald, deadline: "Jul 30" },
+    { type: "NYSC", name: "NYSC SAED Skill Acquisition Program", tag: COLORS.blue, deadline: "Rolling" },
+    { type: "Scholarship", name: "3MTT Cohort 4 Enrollment", tag: COLORS.orange, deadline: "Aug 15" },
+    { type: "Incubator", name: "CcHUB Pre-Accelerator", tag: "#8B5CF6", deadline: "Sep 1" },
+  ];
+  return (
+    <div>
+      {items.map((it, i) => (
+        <Card t={t} key={i} style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexDirection: "row" }}>
+          <div>
+            <Badge color={it.tag}>{it.type}</Badge>
+            <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14.5, marginTop: 8 }}>{it.name}</div>
+            <div style={{ fontFamily: "Inter", fontSize: 12, color: t.textMuted, marginTop: 3 }}>Deadline: {it.deadline}</div>
+          </div>
+          <Btn size="sm">View</Btn>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/* ---------------- CV Builder ---------------- */
+function CvView({ t }) {
+  return (
+    <div className="s2i-cards2">
+      {["Modern", "Classic", "Creative"].map((tpl) => (
+        <Card t={t} key={tpl}>
+          <div style={{ height: 140, borderRadius: 10, background: `linear-gradient(160deg, ${COLORS.emeraldLight}, ${COLORS.blueLight})`, marginBottom: 12 }} />
+          <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 14.5 }}>{tpl} Template</div>
+          <Btn size="sm" full style={{ marginTop: 10 }}>Use template</Btn>
+        </Card>
+      ))}
+      <Card t={t}><SectionTitle t={t} icon="globe" title="Portfolio Website" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>Generate a free shareable portfolio site from your CV.</p></Card>
+      <Card t={t}><SectionTitle t={t} icon="briefcase" title="LinkedIn Optimization" /><p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>AI review of your headline, summary, and skills section.</p></Card>
+    </div>
+  );
+}
+
+/* ---------------- Interview Coach ---------------- */
+function InterviewView({ t }) {
+  return (
+    <div>
+      <Card t={t} style={{ textAlign: "center", padding: 32 }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: COLORS.emeraldLight, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+          <Icon name="mic" size={28} color={COLORS.emeraldDark} />
+        </div>
+        <h3 style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 17, marginTop: 16 }}>Practice a mock interview</h3>
+        <p style={{ fontFamily: "Inter", fontSize: 13.5, color: t.textMuted, marginTop: 6, maxWidth: 360, margin: "6px auto 0" }}>The AI asks role-specific questions, analyzes your speech, and scores your answers.</p>
+        <Btn style={{ marginTop: 18 }}>Start mock interview</Btn>
+      </Card>
+      <Card t={t} style={{ marginTop: 16 }}>
+        <SectionTitle t={t} icon="check" title="Last session feedback" />
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <GrowthRing value={81} size={70} stroke={7} dark={false} />
+          <div>
+            <div style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted }}>Clear structure, but pace was fast. Add specific numbers to your achievements.</div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------- Income Tracker ---------------- */
+function TrackerView({ t }) {
+  const bars = [22, 30, 28, 41, 38, 52, 64];
+  const max = Math.max(...bars);
+  return (
+    <div>
+      <div className="s2i-cards2" style={{ marginBottom: 16 }}>
+        <MiniStat t={t} icon="coin" color={COLORS.emerald} label="Total earned" value="₦275,000" sub="last 7 months" />
+        <MiniStat t={t} icon="chart" color={COLORS.blue} label="Avg. growth" value="+14%" sub="month over month" />
+        <MiniStat t={t} icon="target" color={COLORS.orange} label="Goal progress" value="64%" sub="₦64k of ₦100k" />
+      </div>
+      <Card t={t}>
+        <SectionTitle t={t} icon="chart" title="Monthly earnings" />
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140, marginTop: 10 }}>
+          {bars.map((b, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ width: "100%", height: `${(b / max) * 110}px`, borderRadius: 6, background: i === bars.length - 1 ? `linear-gradient(180deg, ${COLORS.emerald}, ${COLORS.blue})` : t.border }} />
+              <span style={{ fontFamily: "Inter", fontSize: 10.5, color: t.textFaint }}>{["Jan","Feb","Mar","Apr","May","Jun","Jul"][i]}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------------- Achievements / Gamification ---------------- */
+function AchievementsView({ t }) {
+  const badges = [
+    { n: "7-Day Streak", got: true }, { n: "First Application", got: true }, { n: "First ₦10k Earned", got: true },
+    { n: "Course Complete", got: true }, { n: "30-Day Streak", got: false }, { n: "First Client", got: false },
+    { n: "₦100k Milestone", got: false }, { n: "Mentor Chat x50", got: false },
+  ];
+  return (
+    <div>
+      <Card t={t} style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontFamily: "Inter", fontSize: 12, color: t.textMuted }}>Level 7</div>
+            <div style={{ fontFamily: "Sora", fontWeight: 800, fontSize: 20 }}>1,240 XP</div>
+          </div>
+          <Badge color={COLORS.orange}>🔥 12-day streak</Badge>
+        </div>
+        <div style={{ height: 8, borderRadius: 99, background: t.border, marginTop: 14 }}><div style={{ height: "100%", width: "62%", borderRadius: 99, background: `linear-gradient(90deg, ${COLORS.emerald}, ${COLORS.blue})` }} /></div>
+        <div style={{ fontFamily: "Inter", fontSize: 11.5, color: t.textFaint, marginTop: 6 }}>260 XP to Level 8</div>
+      </Card>
+      <div className="s2i-cards" >
+        {badges.map((b) => (
+          <Card t={t} key={b.n} style={{ textAlign: "center", opacity: b.got ? 1 : 0.4 }}>
+            <div style={{ width: 46, height: 46, borderRadius: "50%", margin: "0 auto", background: b.got ? COLORS.orangeLight : "transparent", border: `2px solid ${b.got ? COLORS.orange : t.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="trophy" size={20} color={b.got ? COLORS.orange : t.textFaint} />
+            </div>
+            <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 12, marginTop: 8 }}>{b.n}</div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- shared bits ---------------- */
+function TabRow({ t, tabs, tab, setTab }) {
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto" }}>
+      {tabs.map(([k, l]) => (
+        <div key={k} onClick={() => setTab(k)} style={{
+          padding: "8px 16px", borderRadius: 999, cursor: "pointer", whiteSpace: "nowrap",
+          fontFamily: "Inter", fontWeight: 600, fontSize: 13, background: tab === k ? COLORS.emerald : "transparent",
+          color: tab === k ? "#fff" : t.textMuted, border: `1px solid ${tab === k ? COLORS.emerald : t.border}`
+        }}>{l}</div>
+      ))}
+    </div>
+  );
+}
+function SearchBox({ t, placeholder }) {
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, border: `1px solid ${t.border}`, background: t.bgElevated, minWidth: 200 }}>
+      <Icon name="target" size={15} color={t.textMuted} />
+      <input placeholder={placeholder} style={{ border: "none", outline: "none", background: "transparent", color: t.text, fontFamily: "Inter", fontSize: 13.5, width: "100%" }} />
+    </div>
+  );
+}
+function EmptyState({ t, icon, title, desc }) {
+  return (
+    <Card t={t} style={{ textAlign: "center", padding: 40 }}>
+      <Icon name={icon} size={30} color={t.textFaint} />
+      <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15, marginTop: 12 }}>{title}</div>
+      <p style={{ fontFamily: "Inter", fontSize: 13, color: t.textMuted, marginTop: 6 }}>{desc}</p>
+    </Card>
+  );
+}
+
+/* ============================================================
+   ROOT — wires Landing -> Auth -> Onboarding -> Results -> Dashboard
+   ============================================================ */
+export default function Skill2Income() {
+  const { dark, setDark, t } = useTheme();
+  const [screen, setScreen] = useState("landing"); // landing | auth | onboarding | results | dashboard
+  const [authMode, setAuthMode] = useState("signup");
+  const [answers, setAnswers] = useState({});
+  const [profile, setProfile] = useState(null);
+
+  return (
+    <div style={{ fontFamily: "Inter, sans-serif" }}>
+      <style>{FONT_IMPORT}</style>
+      {screen === "landing" && (
+        <Landing t={t} dark={dark} setDark={setDark} goAuth={(m) => { setAuthMode(m); setScreen("auth"); }} />
+      )}
+      {screen === "auth" && (
+        <Auth t={t} dark={dark} mode={authMode} setMode={setAuthMode} back={() => setScreen("landing")} onDone={() => setScreen("onboarding")} />
+      )}
+      {screen === "onboarding" && (
+        <Onboarding t={t} dark={dark} onComplete={(a) => { setAnswers(a); setProfile(computeProfile(a)); setScreen("results"); }} />
+      )}
+      {screen === "results" && (
+        <Results t={t} dark={dark} answers={answers} onContinue={() => setScreen("dashboard")} />
+      )}
+      {screen === "dashboard" && (
+        <Dashboard t={t} dark={dark} setDark={setDark} profile={profile} />
+      )}
+    </div>
+  );
+}
